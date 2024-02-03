@@ -1,61 +1,51 @@
 const express = require('express');
 const app = express();
 const dns = require('dns');
-require('dotenv').config();
+const urlList = [];
 
-const mongoose = require('mongoose');
-const autoIncrement = require('mongoose-auto-increment');
-
-const urlSchema = new mongoose.Schema({
-  url: {
-    type: String,
-    required: true,
-    unique: true
-  }
-})
-
-autoIncrement.initialize(mongoose.connection);
-
-urlSchema.plugin(autoIncrement.plugin, { model: 'Url', field: 'shortUrl' });
-
-const Url = mongoose.model('Url', urlSchema);
-
-app.use('/public', express.static(`${process.cwd()}/public`));
+app.use('/public', express.static( __dirname + '/public'));
 
 app.get('/', function(req, res) {
-  res.sendFile(process.cwd() + '/views/index.html');
+  res.sendFile(__dirname + '/views/index.html');
 });
 
-let response = {};
-
-const validUrl = (url) => {
-  console.log('URL: ===> ' + url)
-  dns.lookup(url, (err) => {
+const checkUrl = (req, res, next) => {
+  const { url } = req.body;
+  let hostname;
+  try {
+    hostname = new URL(url).hostname;
+  } catch(err) {
+    res.send({ "error": 'Invalid URL' });
+    return;
+  }
+  dns.lookup(hostname, (err) => {
     if (err) {
-      console.log(err);
+      res.send({ "error": 'Invalid URL' });
+      return;
     }
-  } )
+    next();
+  })
 }
 
-app.post('/api/shorturl', (req, res) => {
-  const url  = req.body.url;
-  const filter = { original_url: url };
-  validUrl(url);
-  res.send(response);
+app.post('/api/shorturl', checkUrl, (req, res) => {
+  const { url } = req.body;
+  let urlObj = urlList.filter(({ original_url }) => original_url === url);
+  if (urlObj.length === 0) {
+    urlList.push({
+      original_url: url,
+      short_url: urlList.length + 1
+    })
+    urlObj = urlList[urlList.length - 1];
+  }
+  res.send(urlObj);
 });
 
-app.get('/api/shorturl/:shortUrl', (req, res, next) => {
-  console.log('Consultando shorturl...');
-  next();
+app.get('/api/shorturl/:shortUrl', (req, res) => {
+  const shortUrl = parseInt(req.params['shortUrl']);
+  const urlSelected = urlList.filter(({ short_url }) => short_url === shortUrl);
+  if (urlSelected.length > 0) {
+    res.redirect(301, urlSelected[0].original_url);
+  }
 });
-
-const findUrl = async (filter) => {
-  const doc = await Url.findOneAndUpdate(filter, { original_url: filter.original_url }, {
-    new: true,
-    upsert: true // Make this update into an upsert
-  });
-
-  return doc;
-}
 
 module.exports = app;

@@ -1,20 +1,10 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const app = express();
-const myApp = require('./myApp');
 const bodyParser = require('body-parser');
-let mongoose;
-try {
-  mongoose = require("mongoose");
-} catch (e) {
-  console.log(e);
-}
 
-mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-
-app.use(cors());
 app.use(bodyParser.urlencoded({extended: false}));
+app.use(cors());
 
 // Tracking
 app.use((req, res, next) => {
@@ -23,6 +13,7 @@ app.use((req, res, next) => {
 })
 
 //App
+const myApp = require('./myApp');
 app.use('/', myApp);
 
 // Basic Configuration
